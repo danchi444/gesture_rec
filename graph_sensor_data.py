@@ -2,7 +2,7 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
-df = pd.read_csv("gesture_data/alpha_raw_data.csv")
+df = pd.read_csv("gesture_data/test_raw_data.csv")
 
 df["timestamp"] = df["timestamp"] / 1000.0
 
@@ -11,7 +11,7 @@ end_time = df["timestamp"].max()
 
 window_size = 3
 step_size = 2
-with PdfPages("gesture_data/alpha_graphs.pdf") as pdf:
+with PdfPages("gesture_data/test_graphs.pdf") as pdf:
     current_time = start_time
     while current_time + window_size <= end_time:
         window_df = df[(df["timestamp"] >= current_time) & (df["timestamp"] < current_time + window_size)]

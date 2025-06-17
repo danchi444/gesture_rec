@@ -6,7 +6,7 @@ port = 'COM9'
 baud_rate = 115200
 data_dir = 'gesture_data'
 
-file_name = os.path.join(data_dir, 'alpha_labeled.csv')
+file_name = os.path.join(data_dir, 'test_raw_data.csv')
 
 try:
     ser = serial.Serial(port, baud_rate, timeout=1) # timeout je za .readline()

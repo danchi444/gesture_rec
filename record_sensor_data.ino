@@ -13,7 +13,7 @@ void setup() {
     while (true);
   }
 
-  start_time = millis();
+  startTime = millis();
 }
 
 void loop() {
