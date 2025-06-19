@@ -1,25 +1,36 @@
-import pandas as pd
-import joblib
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
-from micromlgen import port
+import numpy as np
+from keras.models import Sequential
+from keras.layers import Dense
+from tcn import TCN
+import tensorflow as tf
+import os
 
-df = pd.read_csv("train_dataset.csv")
+NUM_FILTERS = 64
+DENSE_UNITS = 64  
 
-X = df.drop(columns=['label'])
-y = df['label']
+data = np.load('train_dataset.npz')
+X = data['X']
+y = data['y']
 
-model = make_pipeline(
-    StandardScaler(),
-    RandomForestClassifier(n_estimators=175, random_state=42)
-)
+model = Sequential([
+    TCN(nb_filters=NUM_FILTERS, input_shape=(X.shape[1], X.shape[2])),
+    Dense(DENSE_UNITS, activation='relu'),
+    Dense(len(np.unique(y)), activation='softmax')
+])
 
-model.fit(X, y)
-print(model.named_steps['randomforestclassifier'].classes_)
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
 
-joblib.dump(model, "gesture_model.pkl")
+model.summary()
 
-c_code = port(model.named_steps['randomforestclassifier'])
-with open('final/gesture_model.h', 'w') as f:
-    f.write(c_code)
+model.fit(X, y, epochs=15, batch_size=16, validation_split=0.2)
+
+model.save('gesture_model.h5')
+
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+
+os.makedirs('final', exist_ok=True)
+with open('final/model.tflite', 'wb') as f:
+    f.write(tflite_model)

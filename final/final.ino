@@ -1,31 +1,40 @@
 #include <Arduino_BMI270_BMM150.h>
-#include <ArduinoBLE.h>
-#include "gesture_model.h"
+//#include <ArduinoBLE.h>
+#include <TensorFlowLite.h>
+#include "model_quantized.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 
-#define SENSOR_SAMPLE_RATE_HZ 104
-#define WINDOW_SIZE 1 * SENSOR_SAMPLE_RATE_HZ
+#define SENSOR_SAMPLE_RATE_HZ 60
+#define WINDOW_SIZE ((int)(0.8 * SENSOR_SAMPLE_RATE_HZ))
 #define NUM_FEATURES 6
-#define MODEL_INPUT_SIZE (WINDOW_SIZE * NUM_FEATURES)
-#define WINDOW_STRIDE_MS 500
-#define DEBOUNCE_MS 1000
+#define WINDOW_STRIDE_MS 400
+#define DEBOUNCE_MS 3000
 
+/*
 const char* BLE_DEVICE_NAME = "magic_wand";
 const char* BLE_SERVICE_UUID = "0d431e22-b9ed-4938-b8fe-fe47311b469b";
 const char* BLE_CHAR_UUID    = "24b077e2-a798-49ea-821f-824bd3998bde";
-BLEService gestureService(BLE_SERVICE_UUID); // service je kontejner za karakteristike
-BLECharacteristic gestureChar(BLE_CHAR_UUID, BLERead | BLENotify, 20); // karakteristika koja se moze citati (ime geste)
-                                                                      // i koja obavijesti pratitelje o promjenama
+BLEService gestureService(BLE_SERVICE_UUID);
+BLECharacteristic gestureChar(BLE_CHAR_UUID, BLERead | BLENotify, 1); */
 
-Eloquent::ML::Port::RandomForest model;
-
-float sensorBuffer[MODEL_INPUT_SIZE];
+float sensorBuffer[WINDOW_SIZE][NUM_FEATURES];
 unsigned int bufferIndex = 0;
 unsigned long lastSampleTime = 0;
 unsigned long lastWindowTime = 0;
 
-String lastGesture = "";
+int lastGesture = -1;
 unsigned long lastGestureTime = 0;
-const char* gestureLabels[] = {"4", "8", "alpha", "double", "flick", "junk"};
+
+constexpr int kTensorArenaSize = 22 * 1024;
+uint8_t tensor_arena[kTensorArenaSize];
+tflite::MicroInterpreter* interpreter = nullptr;
+TfLiteTensor* input = nullptr;
+TfLiteTensor* output = nullptr;
+
+float input_scale;
+int input_zero_point;
 
 void setup() {
   Serial.begin(115200);
@@ -36,6 +45,7 @@ void setup() {
     while (1);
   }
 
+  /*
   if (!BLE.begin()) {
     Serial.println("BLE init failed!");
     while (1);
@@ -45,21 +55,43 @@ void setup() {
   BLE.setAdvertisedService(gestureService);
   gestureService.addCharacteristic(gestureChar);
   BLE.addService(gestureService);
-  gestureChar.writeValue("ready");
   BLE.advertise();
-  Serial.println("BLE device ready, advertising...");
+  Serial.println("BLE device ready, advertising...");*/
+
+  const tflite::Model* model = tflite::GetModel(model_tflite);
+  static tflite::MicroMutableOpResolver<11> micro_op_resolver;
+  micro_op_resolver.AddAdd();
+  micro_op_resolver.AddBatchToSpaceNd();
+  micro_op_resolver.AddConv2D();
+  micro_op_resolver.AddExpandDims();
+  micro_op_resolver.AddFullyConnected();
+  micro_op_resolver.AddPad();
+  micro_op_resolver.AddReshape();
+  micro_op_resolver.AddSoftmax();
+  micro_op_resolver.AddSpaceToBatchNd();
+  micro_op_resolver.AddStridedSlice();
+
+  static tflite::MicroInterpreter static_interpreter(
+      model, micro_op_resolver, tensor_arena, kTensorArenaSize);
+  interpreter = &static_interpreter;
+  interpreter->AllocateTensors();
+  input = interpreter->input(0);
+  input_scale = input->params.scale;
+  input_zero_point = input->params.zero_point;
+  output = interpreter->output(0);
 }
 
 void loop() {
-  BLEDevice central = BLE.central();
+  // BLEDevice central = BLE.central();
 
-  if (central) {
-    Serial.println("Connected to central");
+  // if (central) {
+  //   Serial.println("Connected to central");
     bufferIndex = 0;
     lastSampleTime = millis();
     lastWindowTime = millis();
 
-    while (central.connected()) {
+    // while (central.connected()) {
+    while (true) {
       unsigned long now = millis();
 
       if (now - lastSampleTime >= 1000 / SENSOR_SAMPLE_RATE_HZ) {
@@ -68,53 +100,68 @@ void loop() {
           IMU.readAcceleration(ax, ay, az);
           IMU.readGyroscope(gx, gy, gz);
 
-          if (bufferIndex >= MODEL_INPUT_SIZE) {
-            memmove(sensorBuffer, sensorBuffer + NUM_FEATURES, sizeof(float) * (MODEL_INPUT_SIZE - NUM_FEATURES));
-            bufferIndex = MODEL_INPUT_SIZE - NUM_FEATURES;
+          if (bufferIndex >= WINDOW_SIZE) {
+            for (int i = 1; i < WINDOW_SIZE; i++) {
+              for (int j = 0; j < NUM_FEATURES; j++) {
+                sensorBuffer[i - 1][j] = sensorBuffer[i][j];
+              }
+            }
+            bufferIndex = WINDOW_SIZE - 1;
           }
 
-          sensorBuffer[bufferIndex++] = ax;
-          sensorBuffer[bufferIndex++] = ay;
-          sensorBuffer[bufferIndex++] = az;
-          sensorBuffer[bufferIndex++] = gx;
-          sensorBuffer[bufferIndex++] = gy;
-          sensorBuffer[bufferIndex++] = gz;
+          sensorBuffer[bufferIndex][0] = ax;
+          sensorBuffer[bufferIndex][1] = ay;
+          sensorBuffer[bufferIndex][2] = az;
+          sensorBuffer[bufferIndex][3] = gx;
+          sensorBuffer[bufferIndex][4] = gy;
+          sensorBuffer[bufferIndex][5] = gz;
+          bufferIndex++;
         }
         lastSampleTime = now;
       }
 
-      if (bufferIndex >= MODEL_INPUT_SIZE && now - lastWindowTime >= WINDOW_STRIDE_MS) {
-        float gyroSum = 0;
-        for (int i = 0; i < MODEL_INPUT_SIZE; i += NUM_FEATURES) {
-            float gx = sensorBuffer[i+3];
-            float gy = sensorBuffer[i+4];
-            float gz = sensorBuffer[i+5];
-            gyroSum += sqrt(gx*gx + gy*gy + gz*gz);
+      if (bufferIndex >= WINDOW_SIZE && now - lastWindowTime >= WINDOW_STRIDE_MS) {
+
+        int idx = 0;
+        for (int i = 0; i < WINDOW_SIZE; i++) {
+          for (int j = 0; j < NUM_FEATURES; j++) {
+            float val = sensorBuffer[i][j];
+            int8_t q = static_cast<int8_t>(round(val / input_scale) + input_zero_point);
+            input->data.int8[idx++] = q;
+          }
         }
-        float gyroAvg = gyroSum / (MODEL_INPUT_SIZE / NUM_FEATURES);
-        if (gyroAvg < 250) {
-            continue;
+
+        interpreter->Invoke();
+
+        int gestureIdx = 5;
+        int8_t maxVal = output->data.int8[0];
+        for (int i = 1; i < output->dims->data[1]; i++) {
+          if (output->data.int8[i] > maxVal) {
+            maxVal = output->data.int8[i];
+            gestureIdx = i;
+          }
         }
-        
-        int gestureIdx = model.predict(sensorBuffer);
-        String gesture = String(gestureLabels[gestureIdx]);
 
-        Serial.print("Predicted: ");
-        Serial.println(gesture);
+        Serial.print("Predicted index: ");
+        Serial.println(gestureIdx);
 
-        if (gesture != "junk") {
-          if (gesture != lastGesture || now - lastGestureTime > DEBOUNCE_MS) {
-            gestureChar.writeValue(gesture.c_str());
-            Serial.print("Sent over BLE: ");
-            Serial.println(gesture);
+        const int junkIndex = 5;
+        if (gestureIdx != junkIndex) {
+          if (gestureIdx != lastGesture || now - lastGestureTime > DEBOUNCE_MS) {
+            // uint8_t gestureByte = static_cast<uint8_t>(gestureIdx);
+            // gestureChar.writeValue(&gestureByte, 1);
 
-            lastGesture = gesture;
+            Serial.print("Final gesture index (output): ");
+            Serial.println(gestureIdx);
+
+            lastGesture = gestureIdx;
             lastGestureTime = now;
           }
         }
+
         lastWindowTime = now;
       }
     }
-    Serial.println("Central disconnected");
-  }
+    // Serial.println("Central disconnected");
+  // }
 }

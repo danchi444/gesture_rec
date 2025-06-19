@@ -1,27 +1,44 @@
-import pandas as pd
-import joblib
+import numpy as np
+from keras.models import load_model
+from tcn import TCN
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt
-import seaborn as sns
 
-df = pd.read_csv("test_dataset.csv")
+data = np.load('test_dataset.npz')
+X_test = data['X']
+y_test = data['y']
 
-X_test = df.drop(columns=["label"])
-y_test = df["label"]
+class_names = ['4', '8', 'alpha', 'double', 'flick', 'junk']
 
-model = joblib.load("gesture_model.pkl")
+model = load_model('gesture_model.h5', custom_objects={'TCN': TCN})
 
-y_pred = model.predict(X_test)
+y_pred_probs = model.predict(X_test)
+y_pred = y_pred_probs.argmax(axis=1)
 
-print("classification report:")
-print(classification_report(y_test, y_pred))
+print(classification_report(y_test, y_pred, target_names=class_names))
 
-conf_matrix = confusion_matrix(y_test, y_pred, labels=model.classes_)
+cm = confusion_matrix(y_test, y_pred)
 
-plt.figure(figsize=(10, 8))
-sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues",
-            xticklabels=model.classes_, yticklabels=model.classes_)
-plt.xlabel("predicted label")
-plt.ylabel("true label")
+plt.figure(figsize=(8, 6))
+plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
+plt.title("Confusion Matrix")
+plt.colorbar()
+
+num_classes = len(class_names)
+tick_marks = np.arange(num_classes)
+plt.xticks(tick_marks, class_names, rotation=45)
+plt.yticks(tick_marks, class_names)
+
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+
+thresh = cm.max() / 2.
+for i in range(num_classes):
+    for j in range(num_classes):
+        plt.text(j, i, format(cm[i, j], 'd'),
+                 ha="center", va="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
 plt.tight_layout()
+plt.savefig("confusion_matrix.png")
 plt.show()

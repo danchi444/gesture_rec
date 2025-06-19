@@ -4,12 +4,14 @@ import pyautogui
 
 GESTURE_CHAR_UUID = "24b077e2-a798-49ea-821f-824bd3998bde"
 
+gestures = ['4', '8', 'alpha', 'double', 'flick']
+
 gesture_to_action = {
-    "8": lambda: pyautogui.press("0"), # ispocetka
-    "double": lambda: pyautogui.press("l"), # 5 sec >>
-    "flick": lambda: pyautogui.press("k"), # pokreni/stani
+    "8": lambda: pyautogui.press("0"),       # ispocetka
+    "double": lambda: pyautogui.press("l"),  # 5 sec >>
+    "flick": lambda: pyautogui.press("k"),   # pokreni/stani
     "4": lambda: pyautogui.typewrite("120") or pyautogui.press("enter"),  # spec. vrijeme
-    "alpha": lambda: pyautogui.press("j"), # 5 sec <<
+    "alpha": lambda: pyautogui.press("j"),   # 5 sec <<
 }
 
 async def run():
@@ -23,11 +25,17 @@ async def run():
         print("Connected to magic_wand.")
 
         def handle_notification(_, data):
-            gesture = data.decode("utf-8").strip()
-            print(f"Gesture received: {gesture}")
-            action = gesture_to_action.get(gesture)
-            if action:
-                action()
+            gesture_idx = int.from_bytes(data, byteorder='little', signed=True)
+            if 0 <= gesture_idx < len(gestures):
+                gesture = gestures[gesture_idx]
+                print(f"Gesture received: {gesture} (index {gesture_idx})")
+                action = gesture_to_action.get(gesture)
+                if action:
+                    action()
+                else:
+                    print(f"No action mapped for gesture: {gesture}")
+            else:
+                print(f"Received invalid gesture index: {gesture_idx}")
 
         await client.start_notify(GESTURE_CHAR_UUID, handle_notification)
         print("Listening for gestures. Press Ctrl+C to stop.")
