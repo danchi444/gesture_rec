@@ -5,7 +5,7 @@ from tcn import TCN
 import tensorflow as tf
 import os
 
-NUM_FILTERS = 64
+NUM_FILTERS = 32
 DENSE_UNITS = 64  
 
 data = np.load('train_dataset.npz')
