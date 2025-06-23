@@ -8,7 +8,7 @@ data = np.load('test_dataset.npz')
 X_test = data['X']
 y_test = data['y']
 
-class_names = ['4', '8', 'alpha', 'double', 'flick', 'junk']
+class_names = ['double', 'flick', 'infinity', 'junk', 'kiss'] 
 
 model = load_model('gesture_model.h5', custom_objects={'TCN': TCN})
 

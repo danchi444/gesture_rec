@@ -6,7 +6,7 @@ import os
 port = 'COM9'
 baud_rate = 115200
 data_dir = 'gesture_data'
-duration_seconds = 180
+duration_seconds = 30
 
 output_file = os.path.join(data_dir, 'junk_labeled.csv')
 

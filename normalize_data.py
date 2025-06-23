@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 DATA_DIR = "gesture_data"
-GESTURES = ['8', 'double', 'alpha', 'flick', '4', 'junk']
+GESTURES = ['infinity', 'kiss', 'double', 'flick', 'junk']
 SENSOR_COLUMNS = ['ax', 'ay', 'az', 'gx', 'gy', 'gz']
 
 all_data = []

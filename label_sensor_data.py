@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-gestures = ['8', 'double', 'flick', '4', 'alpha']
+gestures = ['infinity', 'kiss', 'double', 'flick']
 folder = "gesture_data"
 
 for gesture in gestures:
@@ -20,7 +20,6 @@ for gesture in gestures:
     for i, row in df.iterrows():
         t = row['timestamp']
 
-        # preskoci nerelvantne intervale
         while current_index < num_intervals and t > intervals.loc[current_index, 'end_time'] * 1000:
             current_index += 1
 
@@ -30,5 +29,4 @@ for gesture in gestures:
             if start <= t <= end:
                 df.at[i, 'label'] = gesture
 
-    df = df.drop(columns=['timestamp'])
     df.to_csv(output_path, index=False) # index=False da ne doda br. reda

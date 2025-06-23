@@ -5,7 +5,7 @@ unsigned long startTime;
 void setup() {
   Serial.begin(115200); // serial.begin() ne vraca nis
   // 115200 brzina prijenosa, otp duplo od prosjecne brzine ulaznih podataka sa senzora
-    // 104hz * otp 500 bitova po uzorku
+    // 104hz * otp 500 bitova po uzorku...KRIVOO, 60hz je
   while (!Serial); // za slucaj da mu treba malo, da ne salje podatke prije nego sto se veza uspostavi
 
   if (!IMU.begin()) { // vraca true/false ako je/nije uspjesno inicijaliziran

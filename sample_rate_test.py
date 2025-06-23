@@ -2,7 +2,7 @@ import os
 import pandas as pd
 
 data_dir = "gesture_data"
-gesture_names = ['8', 'double', 'flick', '4', 'alpha']
+gesture_names = ['double', 'flick', 'infinity', 'kiss']
 
 for gesture in gesture_names:
     print(f"\n--- {gesture} ---")

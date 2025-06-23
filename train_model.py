@@ -1,12 +1,13 @@
 import numpy as np
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 from tcn import TCN
 import tensorflow as tf
 import os
+from keras.callbacks import EarlyStopping
 
-NUM_FILTERS = 32
-DENSE_UNITS = 64  
+NUM_FILTERS = 8
+DENSE_UNITS = 16
 
 data = np.load('train_dataset.npz')
 X = data['X']
@@ -14,6 +15,7 @@ y = data['y']
 
 model = Sequential([
     TCN(nb_filters=NUM_FILTERS, input_shape=(X.shape[1], X.shape[2])),
+    Dropout(0.3),
     Dense(DENSE_UNITS, activation='relu'),
     Dense(len(np.unique(y)), activation='softmax')
 ])
@@ -24,7 +26,13 @@ model.compile(optimizer='adam',
 
 model.summary()
 
-model.fit(X, y, epochs=15, batch_size=16, validation_split=0.2)
+early_stopping = EarlyStopping(
+    monitor='val_loss',
+    patience=10, 
+    restore_best_weights=True
+)
+
+model.fit(X, y, epochs=20, batch_size=4, validation_split=0.2, callbacks=[early_stopping])
 
 model.save('gesture_model.h5')
 
