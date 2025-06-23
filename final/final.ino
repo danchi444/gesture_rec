@@ -28,7 +28,7 @@ bool isRecordingWindow = false;
 
 unsigned long lastGestureTime = 0; 
 
-constexpr int kTensorArenaSize = 75 * 1024;
+constexpr int kTensorArenaSize = 16 * 1024;
 uint8_t tensor_arena[kTensorArenaSize];
 tflite::MicroInterpreter* interpreter = nullptr;
 TfLiteTensor* input = nullptr;
