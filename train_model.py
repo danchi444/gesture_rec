@@ -6,8 +6,8 @@ import tensorflow as tf
 import os
 from keras.callbacks import EarlyStopping
 
-NUM_FILTERS = 8
-DENSE_UNITS = 16
+NUM_FILTERS = 6
+DENSE_UNITS = 12
 
 data = np.load('train_dataset.npz')
 X = data['X']
@@ -28,11 +28,11 @@ model.summary()
 
 early_stopping = EarlyStopping(
     monitor='val_loss',
-    patience=10, 
+    patience=5, 
     restore_best_weights=True
 )
 
-model.fit(X, y, epochs=20, batch_size=4, validation_split=0.2, callbacks=[early_stopping])
+model.fit(X, y, epochs=20, batch_size=8, validation_split=0.2, callbacks=[early_stopping])
 
 model.save('gesture_model.h5')
 
